@@ -1,0 +1,23 @@
+FROM tensorflow/tensorflow:latest-py3
+RUN apt-get update && apt-get install -y python-opencv python-skimage git wget cmake 
+
+RUN apt-get install -y python3-pip
+RUN python3 -m pip install --upgrade pip
+
+RUN python3 -m pip install ipykernel
+RUN python3 -m ipykernel install --user
+
+RUN python3 -m pip install requests ipywidgets RISE nbconvert opencv-python opencv-contrib-python
+
+RUN jupyter nbextension enable --py widgetsnbextension
+RUN jupyter-nbextension install rise --py --sys-prefix && jupyter-nbextension enable rise --py --sys-prefix
+
+RUN git clone git://github.com/keras-team/keras.git && python3 -m pip install keras[tests] && rm -rf keras
+
+RUN python3 -m pip install seaborn progressbar2 xgboost
+
+RUN python3 -m pip install http://download.pytorch.org/whl/cu80/torch-0.3.1-cp35-cp35m-linux_x86_64.whl 
+RUN python3 -m pip install torchvision
+
+# passed = 'docker4ml'
+CMD ["/run_jupyter.sh", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password='sha1:1b28d13060f7:fa96a61b082354475b51b81b4dc3b8e293e61511'"]

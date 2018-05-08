@@ -1,0 +1,64 @@
+#
+#   description: This dockerfile builds the AWS lambda execution environment for running our risk service.
+#   author: Roy Shilkrot
+#   date: 4/14/2018
+#
+FROM amazonlinux:latest
+
+RUN yum update -y
+RUN yum install -y \
+    atlas-devel \
+    atlas-sse3-devel \
+    blas-devel \
+    gcc44 \
+    gcc44-c++ \
+    gcc44-gfortran \
+    lapack-devel \
+    python36-devel \
+    python36-virtualenv \
+    findutils \
+    zip
+
+
+RUN virtualenv-3.6 \
+        --python /usr/bin/python3.6 /lambda_build \
+        --always-copy \
+        --no-site-packages
+
+ENV VIRTUAL_ENV="/lambda_build"
+ENV ENV_EXTRA="$VIRTUAL_ENV/env_extra"
+ENV SITE_PACKAGES="$VIRTUAL_ENV/lib64/python3.6/site-packages/"
+RUN mkdir -p $ENV_EXTRA
+
+RUN /bin/bash -c "source /lambda_build/bin/activate && python3 -m pip install --upgrade pip wheel setuptools"
+RUN /bin/bash -c "source /lambda_build/bin/activate && PYTHONPATH=$PYTHONPATH:$ENV_EXTRA python3 -m pip install -t $ENV_EXTRA/ --no-binary numpy numpy"
+RUN /bin/bash -c "source /lambda_build/bin/activate && PYTHONPATH=$PYTHONPATH:$ENV_EXTRA python3 -m pip install -t $ENV_EXTRA/ --no-binary scipy scipy"
+RUN /bin/bash -c "source /lambda_build/bin/activate && PYTHONPATH=$PYTHONPATH:$ENV_EXTRA python3 -m pip install -t $ENV_EXTRA/ --no-binary sklean sklearn"
+# RUN /bin/bash -c "source /lambda_build/bin/activate && PYTHONPATH=$PYTHONPATH:$ENV_EXTRA python3 -m pip install -t $ENV_EXTRA/ pandas"
+# RUN /bin/bash -c "source /lambda_build/bin/activate && PYTHONPATH=$PYTHONPATH:$ENV_EXTRA python3 -m pip install -t $ENV_EXTRA/ sklearn_pandas"
+# RUN /bin/bash -c "source /lambda_build/bin/activate && PYTHONPATH=$PYTHONPATH:$ENV_EXTRA python3 -m pip install -t $ENV_EXTRA/ tensorflow"
+# RUN yum install -y git
+# RUN git clone git://github.com/keras-team/keras.git && python3 -m pip install -t $ENV_EXTRA/ keras[tests] && rm -rf keras
+
+RUN yum install -y gcc48 gcc48-c++ 
+
+RUN /bin/bash -c "source /lambda_build/bin/activate && PYTHONPATH=$PYTHONPATH:$ENV_EXTRA python3 -m pip install -t $ENV_EXTRA/ xgboost"
+# RUN /bin/bash -c "source /lambda_build/bin/activate && PYTHONPATH=$PYTHONPATH:$ENV_EXTRA python3 -m pip install -t $ENV_EXTRA/ imblearn"
+
+ENV libdir="$ENV_EXTRA/lib/"
+RUN mkdir -p $libdir
+RUN cp /usr/lib64/atlas/* $libdir
+RUN cp /usr/lib64/libquadmath.so.0 $libdir
+RUN cp /usr/lib64/libgfortran.so.3 $libdir
+
+RUN mkdir -p $VIRTUAL_ENV/outputs
+RUN find $ENV_EXTRA/ -name "*.so" | xargs strip
+
+RUN rm -rf $ENV_EXTRA/setup_tools* $ENV_EXTRA/wheel*
+
+RUN echo UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA== | base64 -d > $VIRTUAL_ENV/outputs/venv.zip
+RUN pushd $SITE_PACKAGES && zip -r -9 -q $VIRTUAL_ENV/outputs/venv.zip * ; popd
+RUN echo UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA== | base64 -d > $VIRTUAL_ENV/outputs/venv_extra.zip
+RUN pushd $ENV_EXTRA && zip -r -9 -q $VIRTUAL_ENV/outputs/venv_extra.zip * ; popd
+
+CMD ["/bin/bash"]
